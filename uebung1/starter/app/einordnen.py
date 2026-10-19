@@ -51,14 +51,21 @@ def einordnen(mail: str, versuche: int = 3) -> Anfrage:
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": mail},
     ]
-    # TODO 1: Ruft das Modell auf. Wählt eine passende temperature
-    #         und übergebt response_format=schema_von(Anfrage).
-    # TODO 2: Prüft die Antwort mit Anfrage.model_validate_json(...).
-    # TODO 3: Schlägt die Prüfung fehl (ValidationError), versucht es
-    #         erneut, höchstens `versuche`-mal. Gebt bei jedem
-    #         Fehlversuch eine kurze Meldung aus. Klappt es gar
-    #         nicht, werft einen RuntimeError.
-    raise NotImplementedError("TODO: einordnen() umsetzen")
+    for versuch in range(versuche):
+        antwort = client.chat.completions.create(
+            model=MODEL,
+            messages=nachricht,
+            temperature=0,
+            response_format=schema_von(Anfrage),
+        )
+        rohantwort = antwort.choices[0].message.content
+        print(f"Rohantwort des Modells: {rohantwort}")
+        try:
+            return Anfrage.model_validate_json(rohantwort)
+        except ValidationError:
+            print(f"Antwort ungültig. Neuer Versuch ({versuch + 1}/{versuche}).")
+
+    raise RuntimeError(f"Nach {versuche} Versuchen kam keine gültige Antwort.")
 
 
 def auswerten() -> None:
@@ -68,9 +75,10 @@ def auswerten() -> None:
     richtig = 0
     for fall in faelle:
         ergebnis = einordnen(fall["mail"])
-        # TODO 4: Vergleicht ergebnis mit fall["erwartet"]. Zählt einen
-        #         Fall als richtig, wenn das Anliegen stimmt. Gebt für
-        #         jeden Fall Mail, Ergebnis und ✓ oder ✗ aus.
+        korrekt = ergebnis.anliegen == fall["erwartet"]["anliegen"]
+        richtig += korrekt
+        symbol = "✓" if korrekt else "✗"
+        print(f"{symbol} Mail: {fall['mail']}\n  Ergebnis: {ergebnis}")
     print(f"\n{richtig} von {len(faelle)} Anliegen richtig ({MODEL})")
 
 
